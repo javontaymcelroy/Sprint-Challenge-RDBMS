@@ -1,51 +1,41 @@
-// Manage projects (id, name)
+// ======================= REQUIRES =========================== //
 const express = require('express');
 const helmet = require('helmet');
 const knex = require('knex');
-
-const knexConfig = {
-  client: 'sqlite3',
-  connection: {
-    filename: './data/project_tables.db3'
-  },
-  useNullAsDefault: true // needed for sqlite
-};
-const db = knex(knexConfig);
-
+// ======================= DEFINES =========================== //
+const db = require('./data/helper.js');
 const server = express();
 
 server.use(helmet());
 server.use(express.json());
 
-// list all projects
+// ======================= PROJECTS =========================== //
+
+// GET ALL ===================================================//
 server.get('/api/projects', async (req, res) => {
-  // get the projects from the database
   try {
-    const projects = await db('projects'); // all the records from the table
+    const projects = await db('projects');
     res.status(200).json(projects);
   } catch (error) {
     res.status(500).json(error);
   }
 });
 
-// list a project by id
+// GET =======================================================//
 server.get('/api/projects/:id', async (req, res) => {
-  // get the projects from the database
-  try {
-    const project = await db('projects')
-      .where({ id: req.params.id })
-      .first();
-    res.status(200).json(project);
-  } catch (error) {
-    res.status(500).json(error);
-  }
+  const id = req.params.id;
+  db.getProjectByIdWithActions(id)
+    .then(project => {
+      if (project) {
+        res.status(200).json(project);
+      } else {
+        res.status(404).json({ message: 'project is not found' });
+      }
+    })
+    .catch(err => console.log('error', err));
 });
 
-const errors = {
-  '19': 'Another record with that value exists'
-};
-
-// create projects
+// POST =====================================================//
 server.post('/api/projects', async (req, res) => {
   try {
     const [id] = await db('projects').insert(req.body);
@@ -60,7 +50,8 @@ server.post('/api/projects', async (req, res) => {
     res.status(500).json({ message, error });
   }
 });
-// update projects
+
+// PUT =======================================================//
 server.put('/api/projects/:id', async (req, res) => {
   try {
     const count = await db('projects')
@@ -79,7 +70,7 @@ server.put('/api/projects/:id', async (req, res) => {
   } catch (error) {}
 });
 
-// remove projects (inactivate the project)
+// DELETE ===================================================//
 server.delete('/api/projects/:id', async (req, res) => {
   try {
     const count = await db('projects')
@@ -94,6 +85,42 @@ server.delete('/api/projects/:id', async (req, res) => {
   } catch (error) {}
 });
 
+// ======================= ACTIONS =========================== //
+
+// GET ALL ===================================================//
+server.get('/api/actions', (req, res) => {
+  db.getActions()
+    .then(action => {
+      res.status(200).json(action);
+    })
+    .catch(err => res.status(500).json(err));
+});
+
+// POST =====================================================//
+server.post('/api/actions', async (req, res) => {
+  db.addAction(req.body)
+    .then(action => {
+      res.status(201).json(action);
+    })
+    .catch(err => res.status(500).json(err));
+});
+
+// DELETE ===================================================//
+server.delete('/api/actions/:id', async (req, res) => {
+  try {
+    const count = await db('actions')
+      .where({ id: req.params.id })
+      .del();
+
+    if (count > 0) {
+      res.status(204).end();
+    } else {
+      res.status(404).json({ message: 'action not found' });
+    }
+  } catch (error) {}
+});
+
+// ======================= SERVER =========================== //
 const port = process.env.PORT || 5000;
 server.listen(port, () =>
   console.log(`\n** API running on http://localhost:${port} **\n`)
