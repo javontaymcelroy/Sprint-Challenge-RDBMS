@@ -21,19 +21,4 @@ router.get('/', (req, res) => {
     });
 });
 
-router.post('/', async (req, res) => {
-  try {
-    const [id] = await db('projects').insert(req.body);
-
-    const role = await db('projects')
-      .where({ id })
-      .first();
-
-    res.status(201).json(role);
-  } catch (error) {
-    const message = errors[error.errno] || 'We ran into an error';
-    res.status(500).json({ message, error });
-  }
-});
-
 module.exports = router;
