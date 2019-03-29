@@ -28,14 +28,14 @@ server.get('/api/projects', async (req, res) => {
   }
 });
 
-// list a role by id
+// list a project by id
 server.get('/api/projects/:id', async (req, res) => {
   // get the projects from the database
   try {
-    const role = await db('projects')
+    const project = await db('projects')
       .where({ id: req.params.id })
       .first();
-    res.status(200).json(role);
+    res.status(200).json(project);
   } catch (error) {
     res.status(500).json(error);
   }
@@ -50,11 +50,11 @@ server.post('/api/projects', async (req, res) => {
   try {
     const [id] = await db('projects').insert(req.body);
 
-    const role = await db('projects')
+    const project = await db('projects')
       .where({ id })
       .first();
 
-    res.status(201).json(role);
+    res.status(201).json(project);
   } catch (error) {
     const message = errors[error.errno] || 'We ran into an error';
     res.status(500).json({ message, error });
@@ -68,18 +68,18 @@ server.put('/api/projects/:id', async (req, res) => {
       .update(req.body);
 
     if (count > 0) {
-      const role = await db('projects')
+      const project = await db('projects')
         .where({ id: req.params.id })
         .first();
 
-      res.status(200).json(role);
+      res.status(200).json(project);
     } else {
       res.status(404).json({ message: 'Records not found' });
     }
   } catch (error) {}
 });
 
-// remove projects (inactivate the role)
+// remove projects (inactivate the project)
 server.delete('/api/projects/:id', async (req, res) => {
   try {
     const count = await db('projects')
