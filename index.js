@@ -1,127 +1,193 @@
-// ======================= REQUIRES =========================== //
+// ================================= DEPENDANCIES ================================== //
 const express = require('express');
 const helmet = require('helmet');
 const knex = require('knex');
-// ======================= DEFINES =========================== //
-const db = require('./data/helper.js');
+const dbConfig = require('./knexfile');
+const db = knex(dbConfig.development);
 const server = express();
-
-server.use(helmet());
+// ================================= USES ================================== //
 server.use(express.json());
+server.use(helmet());
 
-// ======================= PROJECTS =========================== //
-
-// GET ALL ===================================================//
-server.get('/api/projects', async (req, res) => {
-  try {
-    const projects = await db('projects');
-    res.status(200).json(projects);
-  } catch (error) {
-    res.status(500).json(error);
-  }
+// ================================= DEPENDANCIES ================================== //
+server.get('/', (req, res) => {
+  res.send('API Running, AAAYYYYEEE!');
 });
 
-// GET =======================================================//
-server.get('/api/projects/:id', async (req, res) => {
-  const id = req.params.id;
-  db.getProjectByIdWithActions(id)
-    .then(project => {
-      if (project) {
-        res.status(200).json(project);
-      } else {
-        res.status(404).json({ message: 'project is not found' });
-      }
+// ================================= ENDPOINTS ================================== //
+
+// --- (POST) MALONE --- //
+server.post('/api/projects', (req, res) => {
+  const project = req.body;
+  const { name } = req.body;
+  if (!name) {
+    res.status(400).json({
+      errorMessage:
+        'Soooo, you just not gonna give your Project a name? How Im suppose to know what it is then...'
+    });
+    return;
+  }
+
+  db.insert(project)
+    .into('projects')
+    .then(ids => {
+      res.status(201).json(ids);
     })
-    .catch(err => console.log('error', err));
+    .catch(err => res.status(500).json(err));
 });
 
-// POST =====================================================//
-server.post('/api/projects', async (req, res) => {
-  try {
-    const [id] = await db('projects').insert(req.body);
-
-    const project = await db('projects')
-      .where({ id })
-      .first();
-
-    res.status(201).json(project);
-  } catch (error) {
-    const message = errors[error.errno] || 'We ran into an error';
-    res.status(500).json({ message, error });
+server.post('/api/actions', (req, res) => {
+  const action = req.body;
+  const { description } = req.body;
+  if (!description) {
+    res.status(400).json({
+      errorMessage:
+        'You need an action description... Please enter the name and try again, please!'
+    });
+    return;
   }
+
+  db.insert(action)
+    .into('actions')
+    .then(ids => {
+      res.status(201).json(ids);
+    })
+    .catch(err => res.status(500).json(err));
 });
 
-// PUT =======================================================//
-server.put('/api/projects/:id', async (req, res) => {
-  try {
-    const count = await db('projects')
-      .where({ id: req.params.id })
-      .update(req.body);
+// --- (GET) ME BODIES --- //
+server.get('/api/projects/:id', (req, res) => {
+  const { id } = req.params;
 
-    if (count > 0) {
-      const project = await db('projects')
-        .where({ id: req.params.id })
-        .first();
+  db('projects')
+    .where('id', '=', id)
+    .then(project => {
+      if (project.length === 0) {
+        res.status(401).json({
+          message: 'The project with the ID does not exist.'
+        });
+        return;
+      }
 
-      res.status(200).json(project);
-    } else {
-      res.status(404).json({ message: 'Records not found' });
-    }
-  } catch (error) {}
+      db('actions')
+        .where('project_id', '=', id)
+        .then(actions => {
+          console.log(actions);
+          project[0].actions = actions;
+          res.status(200).json(project);
+        })
+        .catch(err => {
+          console.error('error', err);
+          res.status(500).json({
+            error: 'Dat project information could not be found, sowwy!'
+          });
+        });
+    })
+    .catch(err => {
+      console.error('error', err);
+      res
+        .status(500)
+        .json({ error: 'Dat project information could not be found, sowwy!' });
+    });
 });
 
-// DELETE ===================================================//
-server.delete('/api/projects/:id', async (req, res) => {
-  try {
-    const count = await db('projects')
-      .where({ id: req.params.id })
-      .del();
-
-    if (count > 0) {
-      res.status(204).end();
-    } else {
-      res.status(404).json({ message: 'Records not found' });
-    }
-  } catch (error) {}
+server.get('/api/projects', (req, res) => {
+  db('projects')
+    .then(projects => {
+      res.status(200).json(projects);
+    })
+    .catch(err => res.status(500).json(err));
 });
-
-// ======================= ACTIONS =========================== //
-
-// GET ALL ===================================================//
 server.get('/api/actions', (req, res) => {
-  db.getActions()
+  db('actions')
+    .then(actions => {
+      res.status(200).json(actions);
+    })
+    .catch(err => res.status(500).json(err));
+});
+
+server.get('/api/actions/:id', (req, res) => {
+  const { id } = req.params;
+
+  db('actions')
+    .where('id', '=', id)
     .then(action => {
+      if (!action) {
+        res.status(404).json({
+          message: 'Dat action does not exist.'
+        });
+        return;
+      }
       res.status(200).json(action);
     })
-    .catch(err => res.status(500).json(err));
+    .catch(err => {
+      console.error('error', err);
+      res
+        .status(500)
+        .json({ error: 'Dat action information could not be found, sowwy!' });
+    });
 });
 
-// POST =====================================================//
-server.post('/api/actions', async (req, res) => {
-  db.addAction(req.body)
-    .then(action => {
-      res.status(201).json(action);
+// --- (DELETES) TO THE LEFTS TO THE LEFTS --- //
+server.delete('/api/projects/:id', (req, res) => {
+  const { id } = req.params;
+
+  db('projects')
+    .where({ id })
+    .del()
+    .then(count => {
+      res.status(200).json(count);
     })
-    .catch(err => res.status(500).json(err));
+    .catch(err => {
+      res.status(500).json(err);
+    });
 });
 
-// DELETE ===================================================//
-server.delete('/api/actions/:id', async (req, res) => {
-  try {
-    const count = await db('actions')
-      .where({ id: req.params.id })
-      .del();
+server.delete('/api/actions/:id', (req, res) => {
+  const { id } = req.params;
 
-    if (count > 0) {
-      res.status(204).end();
-    } else {
-      res.status(404).json({ message: 'action not found' });
-    }
-  } catch (error) {}
+  db('actions')
+    .where({ id })
+    .del()
+    .then(count => {
+      res.status(200).json(count);
+    })
+    .catch(err => {
+      res.status(500).json(err);
+    });
 });
 
-// ======================= SERVER =========================== //
-const port = process.env.PORT || 5000;
-server.listen(port, () =>
-  console.log(`\n** API running on http://localhost:${port} **\n`)
-);
+// --- (PUT) A RING ON IT --- //
+server.put('/api/projects/:id', (req, res) => {
+  const changes = req.body;
+  const { id } = req.params;
+
+  db('projects')
+    .where({ id: id })
+    .update(changes)
+    .then(count => {
+      res.status(200).json(count);
+    })
+    .catch(err => {
+      res.status(500).json(err);
+    });
+});
+server.put('/api/actions/:id', (req, res) => {
+  const changes = req.body;
+  const { id } = req.params;
+
+  db('actions')
+    .where({ id: id })
+    .update(changes)
+    .then(count => {
+      res.status(200).json(count);
+    })
+    .catch(err => {
+      res.status(500).json(err);
+    });
+});
+
+const port = 5000;
+server.listen(port, function() {
+  console.log(`\n API Listening on http://localhost:${port}\n`);
+});
